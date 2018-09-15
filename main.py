@@ -40,6 +40,14 @@ class mainWindow:
 
 
 
+
+
+
+
+        #BOTAO EQUALIZAR
+        self.btnEqualizar = tk.Button(self.frameFiltros,text='Equalizar Contraste',command=self.equalizar)
+        self.btnEqualizar.pack(side=tk.LEFT)
+
         #BOTAO SALVAR
         self.btnSair = tk.Button(self.frameFiltros,text='SALVAR',command=self.salvar)
         self.btnSair.pack(side=tk.LEFT)
@@ -74,18 +82,26 @@ class mainWindow:
         self.limiarSelectorFrame.pack(side=tk.LEFT,anchor='w')
 
         self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=100,to=255,increment=5)
-        self.spinnerLimiar.pack(side=tk.LEFT)
+        spinnerValidation = self.spinnerLimiar.register(self.validateSpinner)
 
-    def salvar(self):
-        from shutil import copyfile
-        copyfile('temp.png','salvo.png')
+        self.spinnerLimiar.pack(side=tk.LEFT)
+        self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
+
+    ################FILTROS DAS IMAGENS##################
+    
+    def equalizar(self):
+        pass
 
     def filtroLimiarS(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
+        self.setRadioState(tk.DISABLED)
+        self.spinnerLimiar.configure(state=tk.NORMAL)
+
         self.valorLimiar = int(self.spinnerLimiar.get())
+
         img = self.prepareImage(self.tempPath)
         new_img = ut.limiarizacao_simples(img,self.valorLimiar)
         ut.gravarArquivo(new_img)
@@ -119,6 +135,31 @@ class mainWindow:
 
         self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
 
+    ################GERENCIAMENTO DE JANELAS##################
+    def setRadioState(self,rState):
+        self.rBtnPB.configure(state=rState)
+        self.rBtnColorido.configure(state=rState)
+
+    def resetComponents(self):
+        self.setRadioState(tk.NORMAL)
+        self.colorVariable.set(0)
+        self.spinnerLimiar.configure(state=tk.DISABLED)
+
+    def validateSpinner(self):
+        try:
+            self.valorLimiar = int(self.spinnerLimiar.get())
+            self.prepareImage(filename=self.originalFile)
+            self.filtroLimiarS()
+            return True
+        except Exception as e:
+            print e
+            tkMessageBox.showerror('Erro','Valor invalido')
+            return False
+
+    def salvar(self):
+        from shutil import copyfile
+        copyfile('temp.png','salvo.png')
+
     def abrir(self):
         self.showImageOnCanvas(filename=None,colored=True)
 
@@ -126,9 +167,10 @@ class mainWindow:
         if(self.originalFile is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return 
+        
 
+        self.resetComponents()
         self.showImageOnCanvas(filename=self.originalFile,colored=True)        
-        self.colorVariable.set(0)
 
     def showImageOnCanvas(self,filename=None,colored=False):
         if(filename is None):   

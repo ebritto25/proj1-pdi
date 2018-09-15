@@ -1,4 +1,4 @@
-#from __future__ import division
+from __future__ import division
 import Tkinter as tk
 import tkFileDialog
 import cv2 as cv
@@ -116,7 +116,7 @@ def equalizarImagem(img):
     return new_img
 
 def conv2D(img,kernel):
-    rows, cols = img.shape
+    rows, cols = img.shape[:2]
     krows, kcols = kernel.shape
 
     kr_min = krows//2
