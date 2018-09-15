@@ -81,7 +81,7 @@ class mainWindow:
         self.limiarSelectorFrame = tk.LabelFrame(self.frameSettings,text='Controle de limiar:')
         self.limiarSelectorFrame.pack(side=tk.LEFT,anchor='w')
 
-        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=100,to=255,increment=5)
+        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=50,to=255,increment=5)
         spinnerValidation = self.spinnerLimiar.register(self.validateSpinner)
 
         self.spinnerLimiar.pack(side=tk.LEFT)
@@ -112,10 +112,18 @@ class mainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        img = self.prepareImage(self.tempPath)
-        new_img = ut.filtroMedia(img)
-        ut.gravarArquivo(new_img)
-        self.showImageOnCanvas(filename=self.tempPath)
+        hasColor = bool(self.colorVariable.get())
+        
+        img = self.prepareImage(self.tempPath,color=hasColor)
+
+        if(hasColor):
+            img[:,:,2] = ut.filtroMedia(img[:,:,2])
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.filtroMedia(img)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
 
     def filtroNegativo(self):
         if(self.img is None):
