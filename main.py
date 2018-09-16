@@ -12,24 +12,36 @@ class ValueEntryDialog:
 
     def __init__(self,root,dataHolder,**kwargs):
 
-        self.frame = tk.Frame(root)
+        self.top = tk.Toplevel(root)
+        self.frame = tk.Frame(self.top)
         self.frame.pack()
 
-        self.top = tk.Toplevel(root)
         
         self.entryComponents = []
+        self.entryVariables = []
         for key in kwargs:
             self.Label = tk.Label(self.frame,text=kwargs[key])
             self.Label.pack()
 
-            self.entryComponents.append(tk.Entry(self.frame))
-            self.entryComponents[len(self.entryComponents)-1].pack()
+            self.entryVariables.append(tk.StringVar())
+            entryVar = self.entryVariables[len(self.entryVariables)-1]
 
-        self.okButton = tk.Button(self.frame,text='OK',command=lambda:self.saveData(dataHolder,**kwargs))
-        self.okButton.pack(side=tk.BOTTOM,anchor='e')
+            self.entryComponents.append(tk.Entry(self.frame,textvariable=entryVar))
+            entry = self.entryComponents[len(self.entryComponents)-1]
+            entry.pack()
+#            entryVar.set('0')
 
-        self.cancelButton = tk.Button(self.frame,text='Cancelar',command=self.sair)
-        self.cancelButton.pack(side=tk.BOTTOM,anchor='w')
+            validateEntry = entry.register(self.entryValidation)
+            entry.configure(validatecommand=validateEntry,validate='focus')
+
+        self.buttonFrame = tk.Frame(self.frame)
+        self.buttonFrame.pack(side=tk.BOTTOM)
+
+        self.okButton = tk.Button(self.buttonFrame,text='OK',command=lambda:self.saveData(dataHolder,**kwargs))
+        self.okButton.pack(side=tk.RIGHT,anchor='e')
+
+        self.cancelButton = tk.Button(self.buttonFrame,text='Cancelar',command=self.sair)
+        self.cancelButton.pack(side=tk.LEFT,anchor='w')
 
     def sair(self):
         trava = False
@@ -37,11 +49,28 @@ class ValueEntryDialog:
 
     def saveData(self,dataHolder,**kwargs):
         for i,entry in enumerate(self.entryComponents):
-            data = entry.get()
-            if data:
-                dataHolder[kwargs.keys()[i]] = data
+            entryVar = self.entryVariables[i]
+            data = int(entryVar.get())
+            dataHolder[kwargs.keys()[i]] = data
 
         self.sair()
+
+    def entryValidation(self):
+        for i,entry in enumerate(self.entryComponents):
+            try:
+                entryVar = self.entryVariables[i]
+                data = int(entryVar.get())
+                if(data < 0):
+                    entryVar.set('0')
+                    return False
+                elif(data > 255):
+                    entryVar.set('255')
+                    return False
+            except Exception as ex:
+                entryVar.set('0')
+                return False
+
+        return True
 
 
 class MainWindow:
@@ -75,6 +104,9 @@ class MainWindow:
         self.btnLimiarS = tk.Button(self.frameFiltros,text='Filtro Limiar Simples',command=self.filtroLimiarS)
         self.btnLimiarS.pack(side=tk.LEFT)
 
+        #BOTAO LAPLACE
+        self.btnLaplace = tk.Button(self.frameFiltros,text='Filtro Laplace',command=self.filtroLaplace)
+        self.btnLaplace.pack(side=tk.LEFT)
 
 
 
@@ -128,7 +160,171 @@ class MainWindow:
         self.spinnerLimiar.pack(side=tk.LEFT)
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
 
+        #BOTAO MEDIANA
+        self.btnMediana = tk.Button(self.frameSettings,text='Mediana',command=self.filtroMediana)
+        self.btnMediana.pack(side=tk.LEFT)
+
+        #BOTAO MAXIMO
+        self.btnMaximo = tk.Button(self.frameSettings,text='Maximo',command=self.filtroMaximo)
+        self.btnMaximo.pack(side=tk.LEFT)
+
+        #BOTAO MINIMO
+        self.btnMinimo = tk.Button(self.frameSettings,text='Minimo',command=self.filtroMinimo)
+        self.btnMinimo.pack(side=tk.LEFT)
+
+        #BOTAO LOGARITMICO
+        self.btnLogaritmico = tk.Button(self.frameSettings,text='Logaritmico',command=self.filtroLogaritmico)
+        self.btnLogaritmico.pack(side=tk.LEFT)
+
+        #BOTAO POTENCIA
+        self.btnPotencia = tk.Button(self.frameSettings,text='Filtro Potencia',command=self.filtroPotencia)
+        self.btnPotencia.pack(side=tk.LEFT)
+
+        #BOTAO HISTOGRAMA
+        self.btnHistograma = tk.Button(self.frameSettings,text='Histograma Atual',command=self.exibirHistograma)
+        self.btnHistograma.pack(side=tk.LEFT)
+
+        #BOTAO GAUSSIANO
+        self.btnGaussiano = tk.Button(self.frameSettings,text='Desfoque Gaussiano',command=self.filtroGaussiano)
+        self.btnGaussiano.pack(side=tk.LEFT)
+
     ################FILTROS DAS IMAGENS##################
+
+    def filtroGaussiano(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+
+        img = self.prepareImage(self.tempPath,color=hasColor)
+        
+        if(hasColor):
+            mask = ut.filtroGaussiano(img[:,:,2])
+            img[:,:,2] = np.clip(mask,0,255).astype(int)
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            mask = ut.filtroGaussiano(img)
+            img = np.clip(mask,0,255).astype(int)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+    
+    def filtroMediana(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+        img = self.prepareImage(self.tempPath,color=hasColor)
+
+        if(hasColor):
+            img[:,:,2] = ut.filtroMediana(img[:,:,2],3,3)
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.filtroMediana(img,3,3)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+
+
+    def filtroMinimo(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+        img = self.prepareImage(self.tempPath,color=hasColor)
+
+        if(hasColor):
+            img[:,:,2] = ut.filtroMinimo(img[:,:,2],3,3)
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.filtroMinimo(img,3,3)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+
+    def filtroMaximo(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+        img = self.prepareImage(self.tempPath,color=hasColor)
+
+        if(hasColor):
+            img[:,:,2] = ut.filtroMaximo(img[:,:,2],3,3)
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.filtroMaximo(img,3,3)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+
+    def filtroLogaritmico(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+        img = self.prepareImage(self.tempPath,color=hasColor)
+
+        if(hasColor):
+            img[:,:,2] = ut.filtroLogaritmico(img[:,:,2])
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.filtroLogaritmico(img)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+
+    def filtroPotencia(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+        
+        dialogConfig = {'c':'Digite o valor da Constante','gamma':'Digite o valor de Gamma'}
+        dataHolder = {}
+        
+        d = ValueEntryDialog(self.root,dataHolder,**dialogConfig)
+
+        self.root.wait_window(d.top)
+
+        if(len(dataHolder)>0):
+            hasColor = bool(self.colorVariable.get())
+            img = self.prepareImage(self.tempPath,color=hasColor)
+
+            if(hasColor):
+                img[:,:,2] = ut.filtroPotencia(img[:,:,2],dataHolder['gamma'],C=dataHolder['c'])
+                ut.gravarArquivo(img,colorSpace='HSV')
+            else:
+                img = ut.filtroPotencia(img,dataHolder['gamma'],C=dataHolder['c'])
+                ut.gravarArquivo(img)
+
+            self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+
+    def filtroLaplace(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+
+        img = self.prepareImage(self.tempPath,color=hasColor)
+        
+        if(hasColor):
+            mask = ut.filtroLaplaciano(img[:,:,2])
+            mask = np.clip(mask,0,255).astype(int)
+            img[:,:,2] = np.clip((img[:,:,2]+mask),0,255)
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            mask = ut.filtroLaplaciano(img)
+            mask = np.clip(mask,0,255).astype(int)
+            img = np.clip((img+mask),0,255)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
     
     def ajustarContraste(self):
         if(self.img is None):
@@ -138,16 +334,23 @@ class MainWindow:
         dialogConfig = {'gMin':'Valor minimo esperado (g_min)','gMax':'Valor maximo esperado (g_max)'}
         dataHolder = {}
 
-        d = ValueEntryDialog(tk.Tk(),dataHolder,**dialogConfig)
+        d = ValueEntryDialog(self.root,dataHolder,**dialogConfig)
         
         self.root.wait_window(d.top)
 
-        print dataHolder
+        if(len(dataHolder) > 0):
+            hasColor = bool(self.colorVariable.get())
 
+            img = self.prepareImage(self.tempPath,color=hasColor)
+            if(hasColor):
+                img[:,:,2] = ut.ajusteContraste(img[:,:,2],dataHolder['gMin'],dataHolder['gMax'])
+                ut.gravarArquivo(img,colorSpace='HSV')
+            else:
+                img = ut.ajusteContraste(img,dataHolder['gMin'],dataHolder['gMax'])
+                ut.gravarArquivo(img)
 
+            self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
 
-
-    
     def equalizar(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
@@ -218,6 +421,22 @@ class MainWindow:
         self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
 
     ################GERENCIAMENTO DE JANELAS##################
+
+    def exibirHistograma(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+
+        img = self.prepareImage(self.tempPath,color=hasColor)
+        
+        if(hasColor):
+            ut.histogramaImagem(img[:,:,2])
+        else:
+            ut.histogramaImagem(img)
+
+
     def setRadioState(self,rState):
         self.rBtnPB.configure(state=rState)
         self.rBtnColorido.configure(state=rState)

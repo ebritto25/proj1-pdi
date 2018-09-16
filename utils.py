@@ -43,6 +43,10 @@ def graficoHistograma(hist):
     plt.bar(np.arange(len(hist)),hist)
     plt.show(block = False)
 
+def histogramaImagem(img):
+    h = calculaHistograma(img)
+    graficoHistograma(h)
+
 def ajusteContraste(img,g_min,g_max):
     rows, cols = img.shape
     new_img = np.zeros(img.shape,dtype='uint8')
@@ -116,7 +120,7 @@ def conv2D(img,kernel):
 
     padding = krows//2
 
-    new_img = np.zeros(img.shape,dtype='uint8')
+    new_img = np.zeros(img.shape)
 
     img = cv.copyMakeBorder(img,padding,padding,padding,padding,cv.BORDER_REFLECT_101)
 
@@ -128,6 +132,7 @@ def conv2D(img,kernel):
             value = 0
             value = np.sum(img[r:r+krows,c:c+kcols] * kernel)
             new_img.itemset((r,c),value)
+
 
     return new_img
 
@@ -142,3 +147,70 @@ def filtroLaplaciano(img):
     kernel = np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
     return conv2D(img,kernel)
 
+def filtroMinimo(img,krows,kcols):
+    rows, cols = img.shape[:2]
+
+    padding = krows//2
+
+    new_img = np.zeros(img.shape)
+
+    img = cv.copyMakeBorder(img,padding,padding,padding,padding,cv.BORDER_REFLECT_101)
+
+    for r in xrange(rows):
+        for c in xrange(cols):
+            value = img[r:r+krows,c:c+kcols].min()
+            new_img.itemset((r,c),value)
+
+
+    return new_img.astype('uint8')
+
+def filtroMaximo(img,krows,kcols):
+    rows, cols = img.shape[:2]
+
+    padding = krows//2
+
+    new_img = np.zeros(img.shape)
+
+    img = cv.copyMakeBorder(img,padding,padding,padding,padding,cv.BORDER_REFLECT_101)
+
+    for r in xrange(rows):
+        for c in xrange(cols):
+            value = img[r:r+krows,c:c+kcols].max()
+            new_img.itemset((r,c),value)
+
+
+    return new_img.astype('uint8')
+
+def filtroMediana(img,krows,kcols):
+    rows, cols = img.shape[:2]
+    middle = (krows*kcols)//2
+
+    padding = krows//2
+
+    new_img = np.zeros(img.shape)
+
+    img = cv.copyMakeBorder(img,padding,padding,padding,padding,cv.BORDER_REFLECT_101)
+
+    for r in xrange(rows):
+        for c in xrange(cols):
+            pixelArray = img[r:r+krows,c:c+kcols].reshape(-1)
+            pixelArray = np.sort(pixelArray)
+            value = pixelArray[middle]
+            new_img.itemset((r,c),value)
+
+
+    return new_img.astype('uint8')
+    
+def filtroLogaritmico(img,L=255):
+    #TODO PERGUNTAR PRO PROFESSOR
+    c = L/np.log10(1+img.max())
+    return c*np.log10((1+img)).astype('uint8')
+
+def filtroPotencia(img,gamma,C=1):
+    #TODO PERGUNTAR PRO PROFESSOR
+    mat = np.clip(C*np.power(img,gamma),0,255)
+    return np.clip(mat,0,255).astype('uint8')
+
+def filtroGaussiano(img):
+    kernel = np.array([[1,4,7,4,1],[4,16,26,16,4],[7,26,41,26,7],[4,16,26,16,4],[1,4,7,4,1]])/273
+    return conv2D(img,kernel)
