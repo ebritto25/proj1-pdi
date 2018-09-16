@@ -35,7 +35,7 @@ def calculaHistograma(img):
     rows,cols = img.shape
     for y in xrange(rows):
         for x in xrange(cols):
-            h[img[y][x]] += 1
+            h[img.item(y,x)] += 1
 
     return h
 
@@ -64,7 +64,7 @@ def ajusteContraste(img,g_min,g_max):
 
     for y in xrange(rows):
         for x in xrange(cols):
-            new_img[y][x] = delta*(img[y][x] - f_min) + g_min
+            new_img.itemset((y,x),delta*(img.item(y,x) - f_min) + g_min)
 
     return new_img
 
@@ -114,9 +114,11 @@ def conv2D(img,kernel):
     rows, cols = img.shape[:2]
     krows, kcols = kernel.shape
 
+    padding = krows//2
+
     new_img = np.zeros(img.shape,dtype='uint8')
 
-    img = cv.copyMakeBorder(img,1,1,1,1,cv.BORDER_REFLECT_101)
+    img = cv.copyMakeBorder(img,padding,padding,padding,padding,cv.BORDER_REFLECT_101)
 
     for r in xrange(rows):
         for c in xrange(cols):

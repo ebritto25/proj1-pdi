@@ -8,7 +8,43 @@ import utils as ut
 from PIL import Image,ImageTk
 import numpy as np
 
-class mainWindow:
+class ValueEntryDialog:
+
+    def __init__(self,root,dataHolder,**kwargs):
+
+        self.frame = tk.Frame(root)
+        self.frame.pack()
+
+        self.top = tk.Toplevel(root)
+        
+        self.entryComponents = []
+        for key in kwargs:
+            self.Label = tk.Label(self.frame,text=kwargs[key])
+            self.Label.pack()
+
+            self.entryComponents.append(tk.Entry(self.frame))
+            self.entryComponents[len(self.entryComponents)-1].pack()
+
+        self.okButton = tk.Button(self.frame,text='OK',command=lambda:self.saveData(dataHolder,**kwargs))
+        self.okButton.pack(side=tk.BOTTOM,anchor='e')
+
+        self.cancelButton = tk.Button(self.frame,text='Cancelar',command=self.sair)
+        self.cancelButton.pack(side=tk.BOTTOM,anchor='w')
+
+    def sair(self):
+        trava = False
+        self.top.destroy()
+
+    def saveData(self,dataHolder,**kwargs):
+        for i,entry in enumerate(self.entryComponents):
+            data = entry.get()
+            if data:
+                dataHolder[kwargs.keys()[i]] = data
+
+        self.sair()
+
+
+class MainWindow:
     
     def __init__(self,master):
         self.img = None
@@ -16,6 +52,7 @@ class mainWindow:
         self.valorLimiar = 100
         self.tempPath = 'temp.png'
         self.colorVariable = tk.IntVar()
+        self.root = master
 
         self.frame = tk.Frame(master)
         self.frame.pack()
@@ -44,8 +81,12 @@ class mainWindow:
 
 
 
+        #BOTAO AJUSTE CONTRASTE
+        self.btnEqualizar = tk.Button(self.frameFiltros,text='Ajustar Contraste',command=self.ajustarContraste)
+        self.btnEqualizar.pack(side=tk.LEFT)
+
         #BOTAO EQUALIZAR
-        self.btnEqualizar = tk.Button(self.frameFiltros,text='Equalizar Contraste',command=self.equalizar)
+        self.btnEqualizar = tk.Button(self.frameFiltros,text='Equalizar Imagem',command=self.equalizar)
         self.btnEqualizar.pack(side=tk.LEFT)
 
         #BOTAO SALVAR
@@ -89,8 +130,41 @@ class mainWindow:
 
     ################FILTROS DAS IMAGENS##################
     
+    def ajustarContraste(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+        
+        dialogConfig = {'gMin':'Valor minimo esperado (g_min)','gMax':'Valor maximo esperado (g_max)'}
+        dataHolder = {}
+
+        d = ValueEntryDialog(tk.Tk(),dataHolder,**dialogConfig)
+        
+        self.root.wait_window(d.top)
+
+        print dataHolder
+
+
+
+
+    
     def equalizar(self):
-        pass
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+
+        img = self.prepareImage(self.tempPath,color=hasColor)
+        if(hasColor):
+            img[:,:,2] = ut.equalizarImagem(img[:,:,2])
+            ut.gravarArquivo(img,colorSpace='HSV')
+        else:
+            img = ut.equalizarImagem(img)
+            ut.gravarArquivo(img)
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        
 
     def filtroLimiarS(self):
         if(self.img is None):
@@ -213,7 +287,7 @@ class mainWindow:
 if (__name__ == '__main__'):
     root = tk.Tk()
     root.title('Projeto Processamento de Imagens')
-    window = mainWindow(root)
+    window = MainWindow(root)
 
     root.mainloop()
 
