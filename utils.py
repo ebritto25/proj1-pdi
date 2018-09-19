@@ -1,3 +1,7 @@
+'''
+Nome: Eduardo Britto da Costa
+RA: 1633368
+'''
 from __future__ import division
 import Tkinter as tk
 import tkFileDialog
@@ -145,6 +149,7 @@ def limiarizacao_simples(img,limiar):
 
 def filtroLaplaciano(img):
     kernel = np.array([[0,-1,0],[-1,4,-1],[0,-1,0]])
+    img = filtroGaussiano(img)
     return conv2D(img,kernel)
 
 def filtroMinimo(img,krows,kcols):
@@ -202,13 +207,16 @@ def filtroMediana(img,krows,kcols):
     return new_img.astype('uint8')
     
 def filtroLogaritmico(img,L=255):
-    #TODO PERGUNTAR PRO PROFESSOR
     c = L/np.log10(1+img.max())
-    return c*np.log10((1+img)).astype('uint8')
+    float_img = img.astype(np.float32)
+    res = c*np.log10(1+float_img)
+    res = np.clip(res,0,255)
+    res = res.astype(np.uint8)
+
+    return res
 
 def filtroPotencia(img,gamma,C=1):
-    #TODO PERGUNTAR PRO PROFESSOR
-    mat = np.clip(C*np.power(img,gamma),0,255)
+    mat = C*np.power(img.astype(float),gamma)
     return np.clip(mat,0,255).astype('uint8')
 
 def filtroGaussiano(img):

@@ -1,9 +1,12 @@
-#!/usr/bin/python
-
+'''
+Nome: Eduardo Britto da Costa
+RA: 1633368
+'''
 import atexit
 import cv2 as cv
 import Tkinter as tk
 import tkMessageBox
+import tkFileDialog as tkF
 import utils as ut
 from PIL import Image,ImageTk
 import numpy as np
@@ -29,7 +32,6 @@ class ValueEntryDialog:
             self.entryComponents.append(tk.Entry(self.frame,textvariable=entryVar))
             entry = self.entryComponents[len(self.entryComponents)-1]
             entry.pack()
-#            entryVar.set('0')
 
             validateEntry = entry.register(self.entryValidation)
             entry.configure(validatecommand=validateEntry,validate='focus')
@@ -44,13 +46,12 @@ class ValueEntryDialog:
         self.cancelButton.pack(side=tk.LEFT,anchor='w')
 
     def sair(self):
-        trava = False
         self.top.destroy()
 
     def saveData(self,dataHolder,**kwargs):
         for i,entry in enumerate(self.entryComponents):
             entryVar = self.entryVariables[i]
-            data = int(entryVar.get())
+            data = float(entryVar.get().replace(',','.'))
             dataHolder[kwargs.keys()[i]] = data
 
         self.sair()
@@ -59,7 +60,7 @@ class ValueEntryDialog:
         for i,entry in enumerate(self.entryComponents):
             try:
                 entryVar = self.entryVariables[i]
-                data = int(entryVar.get())
+                data = float(entryVar.get().replace(',','.'))
                 if(data < 0):
                     entryVar.set('0')
                     return False
@@ -154,7 +155,7 @@ class MainWindow:
         self.limiarSelectorFrame = tk.LabelFrame(self.frameSettings,text='Controle de limiar:')
         self.limiarSelectorFrame.pack(side=tk.LEFT,anchor='w')
 
-        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=50,to=255,increment=5)
+        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=50,to=255,increment=5,width=4)
         spinnerValidation = self.spinnerLimiar.register(self.validateSpinner)
 
         self.spinnerLimiar.pack(side=tk.LEFT)
@@ -183,6 +184,10 @@ class MainWindow:
         #BOTAO HISTOGRAMA
         self.btnHistograma = tk.Button(self.frameSettings,text='Histograma Atual',command=self.exibirHistograma)
         self.btnHistograma.pack(side=tk.LEFT)
+
+        #BOTAO HISTOGRAMA EQUALIZADO
+        self.btnHistEqualizado = tk.Button(self.frameSettings,text='Histograma Equalizado',command=self.histEqualizado)
+        self.btnHistEqualizado.pack(side=tk.LEFT)
 
         #BOTAO GAUSSIANO
         self.btnGaussiano = tk.Button(self.frameSettings,text='Desfoque Gaussiano',command=self.filtroGaussiano)
@@ -343,10 +348,10 @@ class MainWindow:
 
             img = self.prepareImage(self.tempPath,color=hasColor)
             if(hasColor):
-                img[:,:,2] = ut.ajusteContraste(img[:,:,2],dataHolder['gMin'],dataHolder['gMax'])
+                img[:,:,2] = ut.ajusteContraste(img[:,:,2],int(dataHolder['gMin']),int(dataHolder['gMax']))
                 ut.gravarArquivo(img,colorSpace='HSV')
             else:
-                img = ut.ajusteContraste(img,dataHolder['gMin'],dataHolder['gMax'])
+                img = ut.ajusteContraste(img,int(dataHolder['gMin']),int(dataHolder['gMax']))
                 ut.gravarArquivo(img)
 
             self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
@@ -365,6 +370,7 @@ class MainWindow:
         else:
             img = ut.equalizarImagem(img)
             ut.gravarArquivo(img)
+
 
         self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
         
@@ -422,6 +428,24 @@ class MainWindow:
 
     ################GERENCIAMENTO DE JANELAS##################
 
+    def histEqualizado(self):
+        if(self.img is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        hasColor = bool(self.colorVariable.get())
+
+        img = self.prepareImage(self.originalFile,color=hasColor)
+         
+        if(hasColor):
+            hist = ut.equalizarHistogramaImagem(img[:,:,2])
+        else:
+            hist = ut.equalizarHistogramaImagem(img)
+
+
+        ut.graficoHistograma(hist)
+
+
     def exibirHistograma(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
@@ -459,7 +483,9 @@ class MainWindow:
 
     def salvar(self):
         from shutil import copyfile
-        copyfile('temp.png','salvo.png')
+        filename = tkF.asksaveasfilename(filetypes=('PNG {*.png}'))
+        if(filename != ''):
+            copyfile('temp.png',filename)
 
     def abrir(self):
         self.showImageOnCanvas(filename=None,colored=True)
