@@ -544,3 +544,5 @@ if (__name__ == '__main__'):
             remove('temp.png')
 
     atexit.register(exit_handler)
+else:
+    print 'Inicie o projeto rodando o main.py'
