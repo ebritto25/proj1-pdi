@@ -13,6 +13,8 @@ import math
 def abrirArquivo():
     tk.Tk().withdraw() #ocultar janela raiz
     arq = tkFileDialog.askopenfilename()
+    if(arq == ''):
+        raise Exception
     print(arq)
     return arq
 
@@ -25,13 +27,8 @@ def gravarArquivo(img,name=None,colorSpace='GRAY'):
     
     return cv.imwrite(name,img)
 
-def filtroNegativo(img,colored=False):
-    if(colored):
-        img[:,:,2] = 255-img[:,:,2]
-    else:
-        img = 255 - img
-
-    return img
+def filtroNegativo(img):
+    return 255 - img
 
 
 def calculaHistograma(img):
@@ -142,7 +139,7 @@ def conv2D(img,kernel):
 
 def filtroMedia(img):
     kernel = np.array([[1,1,1],[1,1,1],[1,1,1]])/9
-    return conv2D(img,kernel)
+    return conv2D(img,kernel).astype('uint8')
 
 def limiarizacao_simples(img,limiar):
     return ((img > limiar).astype(int)) * 255

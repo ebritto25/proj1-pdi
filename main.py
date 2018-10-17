@@ -1,8 +1,10 @@
+# coding=utf-8
 '''
 Nome: Eduardo Britto da Costa
 RA: 1633368
 '''
 import atexit
+from multiprocessing.pool import ThreadPool
 import cv2 as cv
 import Tkinter as tk
 import tkMessageBox
@@ -75,9 +77,14 @@ class ValueEntryDialog:
 
 
 class MainWindow:
+
+    PROCESS_MULTI_CHANNEL = 1
+    PROCESS_SINGLE_CHANNEL = 0
     
     def __init__(self,master):
+        self.hasColor = None
         self.img = None
+        self.workImg = None
         self.originalFile = None
         self.valorLimiar = 100
         self.tempPath = 'temp.png'
@@ -86,54 +93,53 @@ class MainWindow:
 
         self.frame = tk.Frame(master)
         self.frame.pack()
+
+        top = master.winfo_toplevel()
+        self.menuBar = tk.Menu(top)
+        top['menu'] = self.menuBar
         
-        self.frameFiltros = tk.Frame(self.frame)
-        self.frameFiltros.pack(side=tk.TOP,anchor='nw')
+        #MENU ARQUIVO
+        self.subMenuArquivo = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Arquivo',menu=self.subMenuArquivo)
+        self.subMenuArquivo.add_command(label='Abrir Colorido',command=self.openColoredImage)
+        self.subMenuArquivo.add_command(label='Abrir Cinza',command=self.openGrayImage)
+        self.subMenuArquivo.add_command(label='Imagem Original',command=self.resetImage)
+        self.subMenuArquivo.add_command(label='Salvar Imagem',command=self.salvar)
 
-        self.btnOpen = tk.Button(self.frameFiltros,text='Abrir Imagem',command=self.abrir)
-        self.btnOpen.pack(side=tk.LEFT)
+        #MENU FILTROS
+        self.subMenuFiltros = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Filtros',menu=self.subMenuFiltros)
+        self.subMenuFiltros.add_command(label='Filtro Negativo',command = self.filtroNegativo)
+        self.subMenuFiltros.add_command(label='Filtro Media',command = self.filtroMedia)
+        self.subMenuFiltros.add_command(label='Filtro Mediana',command = self.filtroMediana)
+        self.subMenuFiltros.add_command(label='Filtro Maximo',command = self.filtroMaximo)
+        self.subMenuFiltros.add_command(label='Filtro Minimo',command = self.filtroMinimo)
+        self.subMenuFiltros.add_command(label='Filtro Laplace',command = self.filtroLaplace)
+        self.subMenuFiltros.add_command(label='Filtro Logaritmico',command=self.filtroLogaritmico)
+        self.subMenuFiltros.add_command(label='Filtro Potencia',command=self.filtroPotencia)
+        self.subMenuFiltros.add_command(label='Filtro Desfoque Gaussiano',command=self.filtroGaussiano)
 
-        #BOTAO NEGATIVO
-        self.btnNegativo = tk.Button(self.frameFiltros,text='Negativo',command=self.filtroNegativo)
-        self.btnNegativo.pack(side=tk.LEFT)
+        #MENU CONTRASTE
+        self.subMenuContraste = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Contraste',menu=self.subMenuContraste)
+        self.subMenuContraste.add_command(label='Equalizar Contraste',command = self.equalizar)
+        self.subMenuContraste.add_command(label='Ajustar Contraste',command = self.ajustarContraste)
+       
+        #MENU LIMIARIZAÇÃO
+        self.subMenuLimiarizacao = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Segmentação',menu=self.subMenuLimiarizacao)
+        self.subMenuLimiarizacao.add_command(label='Limiarização Simples',command = self.filtroLimiarS)
 
-        #BOTAO MEDIA
-        self.btnMedia = tk.Button(self.frameFiltros,text='Filtro Media(Blur)',command=self.filtroMedia)
-        self.btnMedia.pack(side=tk.LEFT)
+        #MENU HISTOGRAMAS
+        self.subMenuHistogramas = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Histrogramas',menu=self.subMenuHistogramas)
+        self.subMenuHistogramas.add_command(label='Histograma Atual',command=self.exibirHistograma)
+        self.subMenuHistogramas.add_command(label='Histograma Equalizado',command=self.histEqualizado)
 
-        #BOTAO LIMIARIZACAO
-        self.btnLimiarS = tk.Button(self.frameFiltros,text='Filtro Limiar Simples',command=self.filtroLimiarS)
-        self.btnLimiarS.pack(side=tk.LEFT)
+        #SAIR
+        self.menuBar.add_command(label='Sair',command=self.frame.quit)
 
-        #BOTAO LAPLACE
-        self.btnLaplace = tk.Button(self.frameFiltros,text='Filtro Laplace',command=self.filtroLaplace)
-        self.btnLaplace.pack(side=tk.LEFT)
-
-
-
-
-
-
-        #BOTAO AJUSTE CONTRASTE
-        self.btnEqualizar = tk.Button(self.frameFiltros,text='Ajustar Contraste',command=self.ajustarContraste)
-        self.btnEqualizar.pack(side=tk.LEFT)
-
-        #BOTAO EQUALIZAR
-        self.btnEqualizar = tk.Button(self.frameFiltros,text='Equalizar Imagem',command=self.equalizar)
-        self.btnEqualizar.pack(side=tk.LEFT)
-
-        #BOTAO SALVAR
-        self.btnSair = tk.Button(self.frameFiltros,text='SALVAR',command=self.salvar)
-        self.btnSair.pack(side=tk.LEFT)
-
-        #BOTAO IMAGEM ORIGINAL
-        self.btnOriginal = tk.Button(self.frameFiltros,text='Imagem Original',command=self.resetImage)
-        self.btnOriginal.pack(side=tk.LEFT)
-
-        #BOTAO SAIR
-        self.btnSair = tk.Button(self.frameFiltros,text='SAIR',command=self.frame.quit)
-        self.btnSair.pack(side=tk.LEFT)
-        
+        #CANVAS INICIAL
         self.canvas = tk.Canvas(self.frame,height=600,width=800)
         self.canvas.pack()
 
@@ -141,58 +147,15 @@ class MainWindow:
         self.frameSettings = tk.Frame(self.frame)
         self.frameSettings.pack(side=tk.BOTTOM,anchor='sw')
 
-        #CONTROLE DE COR
-        self.colorSelectorFrame = tk.LabelFrame(self.frameSettings,text='Aplicar na foto:')
-        self.colorSelectorFrame.pack(side=tk.LEFT,anchor='w')
-
-        self.rBtnPB = tk.Radiobutton(self.colorSelectorFrame,text='Tons de Cinza',variable=self.colorVariable,value=0)
-        self.rBtnPB.pack(side=tk.LEFT)
-
-        self.rBtnColorido = tk.Radiobutton(self.colorSelectorFrame,text='Colorida',variable=self.colorVariable,value=1)
-        self.rBtnColorido.pack(side=tk.LEFT)
-
         #SPINNER LIMIAR
         self.limiarSelectorFrame = tk.LabelFrame(self.frameSettings,text='Controle de limiar:')
         self.limiarSelectorFrame.pack(side=tk.LEFT,anchor='w')
 
-        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=50,to=255,increment=5,width=4)
+        self.spinnerLimiar = tk.Spinbox(self.limiarSelectorFrame,from_=0,to=255,increment=5,width=4)
         spinnerValidation = self.spinnerLimiar.register(self.validateSpinner)
 
         self.spinnerLimiar.pack(side=tk.LEFT)
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
-
-        #BOTAO MEDIANA
-        self.btnMediana = tk.Button(self.frameSettings,text='Mediana',command=self.filtroMediana)
-        self.btnMediana.pack(side=tk.LEFT)
-
-        #BOTAO MAXIMO
-        self.btnMaximo = tk.Button(self.frameSettings,text='Maximo',command=self.filtroMaximo)
-        self.btnMaximo.pack(side=tk.LEFT)
-
-        #BOTAO MINIMO
-        self.btnMinimo = tk.Button(self.frameSettings,text='Minimo',command=self.filtroMinimo)
-        self.btnMinimo.pack(side=tk.LEFT)
-
-        #BOTAO LOGARITMICO
-        self.btnLogaritmico = tk.Button(self.frameSettings,text='Logaritmico',command=self.filtroLogaritmico)
-        self.btnLogaritmico.pack(side=tk.LEFT)
-
-        #BOTAO POTENCIA
-        self.btnPotencia = tk.Button(self.frameSettings,text='Filtro Potencia',command=self.filtroPotencia)
-        self.btnPotencia.pack(side=tk.LEFT)
-
-        #BOTAO HISTOGRAMA
-        self.btnHistograma = tk.Button(self.frameSettings,text='Histograma Atual',command=self.exibirHistograma)
-        self.btnHistograma.pack(side=tk.LEFT)
-
-        #BOTAO HISTOGRAMA EQUALIZADO
-        self.btnHistEqualizado = tk.Button(self.frameSettings,text='Histograma Equalizado',command=self.histEqualizado)
-        self.btnHistEqualizado.pack(side=tk.LEFT)
-
-        #BOTAO GAUSSIANO
-        self.btnGaussiano = tk.Button(self.frameSettings,text='Desfoque Gaussiano',command=self.filtroGaussiano)
-        self.btnGaussiano.pack(side=tk.LEFT)
-
     ################FILTROS DAS IMAGENS##################
 
     def filtroGaussiano(self):
@@ -200,11 +163,10 @@ class MainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
 
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg
         
-        if(hasColor):
+        if(self.isImgColored()):
             mask = ut.filtroGaussiano(img[:,:,2])
             img[:,:,2] = np.clip(mask,0,255).astype(int)
             ut.gravarArquivo(img,colorSpace='HSV')
@@ -213,24 +175,23 @@ class MainWindow:
             img = np.clip(mask,0,255).astype(int)
             ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
     
     def filtroMediana(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
 
-        if(hasColor):
+        if(self.isImgColored()):
             img[:,:,2] = ut.filtroMediana(img[:,:,2],3,3)
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.filtroMediana(img,3,3)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy().astype('uint8')
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
 
     def filtroMinimo(self):
@@ -238,51 +199,47 @@ class MainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
 
-        if(hasColor):
+        if(self.isImgColored()):
             img[:,:,2] = ut.filtroMinimo(img[:,:,2],3,3)
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.filtroMinimo(img,3,3)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy().astype('uint8')
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def filtroMaximo(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
 
-        if(hasColor):
+        if(self.isImgColored()):
             img[:,:,2] = ut.filtroMaximo(img[:,:,2],3,3)
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.filtroMaximo(img,3,3)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy().astype('uint8')
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def filtroLogaritmico(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
 
-        if(hasColor):
+        if(self.isImgColored()):
             img[:,:,2] = ut.filtroLogaritmico(img[:,:,2])
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.filtroLogaritmico(img)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy().astype('uint8')
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def filtroPotencia(self):
         if(self.img is None):
@@ -297,39 +254,36 @@ class MainWindow:
         self.root.wait_window(d.top)
 
         if(len(dataHolder)>0):
-            hasColor = bool(self.colorVariable.get())
-            img = self.prepareImage(self.tempPath,color=hasColor)
+            img = self.workImg.copy()
 
-            if(hasColor):
+            if(self.isImgColored()):
                 img[:,:,2] = ut.filtroPotencia(img[:,:,2],dataHolder['gamma'],C=dataHolder['c'])
-                ut.gravarArquivo(img,colorSpace='HSV')
             else:
                 img = ut.filtroPotencia(img,dataHolder['gamma'],C=dataHolder['c'])
-                ut.gravarArquivo(img)
 
-            self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+            self.workImg = img.copy().astype('uint8')
+            self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def filtroLaplace(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
 
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
         
-        if(hasColor):
+        if(self.isImgColored()):
             mask = ut.filtroLaplaciano(img[:,:,2])
             mask = np.clip(mask,0,255).astype(int)
             img[:,:,2] = np.clip((img[:,:,2]+mask),0,255)
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             mask = ut.filtroLaplaciano(img)
             mask = np.clip(mask,0,255).astype(int)
             img = np.clip((img+mask),0,255)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy().astype('uint8')
+
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
     
     def ajustarContraste(self):
         if(self.img is None):
@@ -344,35 +298,34 @@ class MainWindow:
         self.root.wait_window(d.top)
 
         if(len(dataHolder) > 0):
-            hasColor = bool(self.colorVariable.get())
 
-            img = self.prepareImage(self.tempPath,color=hasColor)
-            if(hasColor):
+            img = self.workImg.copy()
+
+            if(self.isImgColored()):
                 img[:,:,2] = ut.ajusteContraste(img[:,:,2],int(dataHolder['gMin']),int(dataHolder['gMax']))
-                ut.gravarArquivo(img,colorSpace='HSV')
             else:
                 img = ut.ajusteContraste(img,int(dataHolder['gMin']),int(dataHolder['gMax']))
-                ut.gravarArquivo(img)
 
-            self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+            self.workImg = img.copy().astype('uint8')
+
+            self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def equalizar(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
 
-        img = self.prepareImage(self.tempPath,color=hasColor)
-        if(hasColor):
+        img = self.workImg.copy()
+
+        if(self.isImgColored()):
             img[:,:,2] = ut.equalizarImagem(img[:,:,2])
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.equalizarImagem(img)
-            ut.gravarArquivo(img)
 
+        self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
         
 
     def filtroLimiarS(self):
@@ -380,14 +333,20 @@ class MainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        self.setRadioState(tk.DISABLED)
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+
         self.spinnerLimiar.configure(state=tk.NORMAL)
 
         self.valorLimiar = int(self.spinnerLimiar.get())
 
-        img = self.prepareImage(self.tempPath)
-        new_img = ut.limiarizacao_simples(img,self.valorLimiar)
-        ut.gravarArquivo(new_img)
+        img = self.originalFile.copy()
+
+        img = ut.limiarizacao_simples(img,self.valorLimiar)
+        
+        self.workImg = img.copy().astype('uint8')
+
         self.showImageOnCanvas(filename=self.tempPath)
 
     def filtroMedia(self):
@@ -395,49 +354,80 @@ class MainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-        
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg.copy()
 
-        if(hasColor):
+        if(self.isImgColored()):
             img[:,:,2] = ut.filtroMedia(img[:,:,2])
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             img = ut.filtroMedia(img)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img.copy()
+        
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
 
     def filtroNegativo(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
+        img = self.workImg
 
-        img = self.prepareImage(self.tempPath,color=hasColor)
-
-        processed_img = ut.filtroNegativo(img,colored=hasColor)
-
-        if(hasColor):
-            ut.gravarArquivo(processed_img,colorSpace='HSV')
+        if(self.isImgColored()):
+            img = cv.cvtColor(img,cv.COLOR_HSV2RGB)
+            imgTuple = self.parallelProcess(3,ut.filtroNegativo,img,MainWindow.PROCESS_MULTI_CHANNEL)
+            img = cv.merge(imgTuple)
+            img = cv.cvtColor(img,cv.COLOR_RGB2HSV)
         else:
-            ut.gravarArquivo(processed_img,colorSpace='GRAY')
+            img = ut.filtroNegativo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=hasColor)
+        self.workImg = img
 
-    ################GERENCIAMENTO DE JANELAS##################
+        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+
+    ################GERENCIAMENTO##################
+    def isImgColored(self):
+        return self.hasColor
+
+    def openColoredImage(self):
+        self.hasColor = True
+        self.abrir()
+
+    def openGrayImage(self):
+        self.hasColor = False
+        self.abrir()
+
+    def parallelProcess(self,threadCount,method,methodArgs,processType):
+        threadPool = ThreadPool(processes=threadCount)
+        threads = []
+
+        args = []
+        if(processType == MainWindow.PROCESS_MULTI_CHANNEL):
+            for i in xrange(threadCount):
+                threads.append(threadPool.apply_async(method,args=(methodArgs[:,:,i],)))
+        elif(processType == MainWindow.PROCESS_SINGLE_CHANNEL):
+
+            for i in xrange(threadCount):
+                threads.append(threadPool.apply_async(method,args=methodArgs))
+
+        threadPool.close()
+        threadPool.join()
+
+        returnList = []
+
+        for thread in threads:
+            returnList.append(thread.get())
+
+        return tuple(returnList)
 
     def histEqualizado(self):
         if(self.img is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
 
-        img = self.prepareImage(self.originalFile,color=hasColor)
+        img = self.originalFile.copy()
          
-        if(hasColor):
+        if(self.isImgColored()):
             hist = ut.equalizarHistogramaImagem(img[:,:,2])
         else:
             hist = ut.equalizarHistogramaImagem(img)
@@ -451,29 +441,19 @@ class MainWindow:
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
-        hasColor = bool(self.colorVariable.get())
-
-        img = self.prepareImage(self.tempPath,color=hasColor)
+        img = self.workImg
         
-        if(hasColor):
+        if(self.isImgColored()):
             ut.histogramaImagem(img[:,:,2])
         else:
             ut.histogramaImagem(img)
 
-
-    def setRadioState(self,rState):
-        self.rBtnPB.configure(state=rState)
-        self.rBtnColorido.configure(state=rState)
-
     def resetComponents(self):
-        self.setRadioState(tk.NORMAL)
-        self.colorVariable.set(0)
         self.spinnerLimiar.configure(state=tk.DISABLED)
 
     def validateSpinner(self):
         try:
             self.valorLimiar = int(self.spinnerLimiar.get())
-            self.prepareImage(filename=self.originalFile)
             self.filtroLimiarS()
             return True
         except Exception as e:
@@ -485,31 +465,40 @@ class MainWindow:
         from shutil import copyfile
         filename = tkF.asksaveasfilename(filetypes=('PNG {*.png}'))
         if(filename != ''):
-            copyfile('temp.png',filename)
+            if(self.isImgColored()):
+                ut.gravarArquivo(self.workImg,filename,colorSpace='HSV')
+            else:
+                ut.gravarArquivo(self.workImg,filename)
 
     def abrir(self):
-        self.showImageOnCanvas(filename=None,colored=True)
+        self.showImageOnCanvas(filename=None,colored=self.isImgColored())
 
     def resetImage(self):
         if(self.originalFile is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return 
-        
 
         self.resetComponents()
-        self.showImageOnCanvas(filename=self.originalFile,colored=True)        
+        self.workImg = self.originalFile.copy()
+        self.showImageOnCanvas(filename=self.originalFile,colored=self.isImgColored())        
 
     def showImageOnCanvas(self,filename=None,colored=False):
         if(filename is None):   
             imgPath = ut.abrirArquivo()
-            self.originalFile = imgPath
-        else:
-            imgPath = filename
+            try:
+                self.workImg = self.prepareImage(imgPath,color=colored)
+            except:
+                return
 
-        self.prepareImage(imgPath,color=colored)
         self.canvas.destroy()
 
-        self.img = ImageTk.PhotoImage(Image.open('temp.png'))
+        if(colored):
+            displayImg = cv.cvtColor(self.workImg,cv.COLOR_HSV2RGB)
+        else:
+            displayImg = cv.cvtColor(self.workImg,cv.COLOR_GRAY2RGB)
+
+
+        self.img = ImageTk.PhotoImage(Image.fromarray(displayImg))
         self.canvas = tk.Canvas(self.frame,height=self.img.height(),width=self.img.width())
         self.canvas.pack()
         imgID = self.canvas.create_image(0,0,image=self.img,anchor='nw')
@@ -520,11 +509,11 @@ class MainWindow:
 
         if(color is False):
             img = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
-            ut.gravarArquivo(img)
         else:
             img = cv.cvtColor(img,cv.COLOR_BGR2HSV)
-            ut.gravarArquivo(img,colorSpace='HSV')
 
+        self.originalFile = img.copy()
+        print('forma workimg: ',img.shape)
         return img
 
 
