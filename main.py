@@ -9,6 +9,7 @@ import cv2 as cv
 import Tkinter as tk
 import tkMessageBox
 import tkFileDialog as tkF
+import tkFont
 import utils as ut
 from PIL import Image,ImageTk
 import numpy as np
@@ -83,8 +84,9 @@ class MainWindow:
     
     def __init__(self,master):
         self.hasColor = None
-        self.img = None
+        self.workCanvasImg = None
         self.workImg = None
+        self.originalCanvasImg = None
         self.originalFile = None
         self.valorLimiar = 100
         self.tempPath = 'temp.png'
@@ -125,23 +127,43 @@ class MainWindow:
         self.subMenuContraste.add_command(label='Equalizar Contraste',command = self.equalizar)
         self.subMenuContraste.add_command(label='Ajustar Contraste',command = self.ajustarContraste)
        
-        #MENU LIMIARIZAÇÃO
+        #MENU SEGMENTAÇÃO
         self.subMenuLimiarizacao = tk.Menu(self.menuBar)
         self.menuBar.add_cascade(label='Segmentação',menu=self.subMenuLimiarizacao)
-        self.subMenuLimiarizacao.add_command(label='Limiarização Simples',command = self.filtroLimiarS)
+        self.subMenuLimiarizacao.add_command(label='Limiarização Manual',command = self.filtroLimiarS)
+        self.subMenuLimiarizacao.add_command(label='Limiarização Otsu',command = self.filtroLimiarOtsu)
+        self.subMenuLimiarizacao.add_command(label='Crescimento de regiões',command = lambda: self.filtroCrescimento(None,ready=False))
 
         #MENU HISTOGRAMAS
         self.subMenuHistogramas = tk.Menu(self.menuBar)
-        self.menuBar.add_cascade(label='Histrogramas',menu=self.subMenuHistogramas)
+        self.menuBar.add_cascade(label='Histogramas',menu=self.subMenuHistogramas)
         self.subMenuHistogramas.add_command(label='Histograma Atual',command=self.exibirHistograma)
         self.subMenuHistogramas.add_command(label='Histograma Equalizado',command=self.histEqualizado)
+
+        #MENU DETECÇÃO
+        self.subMenuDeteccao = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Detecção de Bordas',menu=self.subMenuDeteccao)
+        self.subMenuDeteccao.add_command(label='Detecção de Sobel',command=self.deteccaoSobel)
+        self.subMenuDeteccao.add_command(label='Detecção de Canny',command=self.deteccaoCanny)
+
+        #MENU DETECÇÃO
+        self.subMenuTransformacao = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Transformações',menu=self.subMenuTransformacao)
+        self.subMenuTransformacao.add_command(label='Abertura',command=self.transAbertura)
+        self.subMenuTransformacao.add_command(label='Fechamento',command=self.transFechamento)
 
         #SAIR
         self.menuBar.add_command(label='Sair',command=self.frame.quit)
 
+        #FRAME CANVAS
+        self.workCanvas = None
+        self.originalCanvas = None
+        self.frameCanvas = tk.Frame(self.frame)
+        self.frameCanvas.pack(side=tk.TOP)
+
         #CANVAS INICIAL
-        self.canvas = tk.Canvas(self.frame,height=600,width=800)
-        self.canvas.pack()
+        self.workCanvas = tk.Canvas(self.frameCanvas,height=600,width=800)
+        self.workCanvas.pack()
 
         #FRAME SETTINGS
         self.frameSettings = tk.Frame(self.frame)
@@ -156,29 +178,152 @@ class MainWindow:
 
         self.spinnerLimiar.pack(side=tk.LEFT)
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
-    ################FILTROS DAS IMAGENS##################
+    ################ FILTROS E TRANSFORMAÇÕES ##################
+    ############### FUNÇÕES PROJETO 2 ####################
+    def transAbertura(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
 
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+
+        img = self.workImg.copy()
+
+        img = ut.transAbertura(img)
+
+        self.workImg = img.copy().astype('uint8')
+
+        self.updateWorkCanvas()
+
+    def transFechamento(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+
+        img = self.workImg.copy()
+
+        img = ut.transFechamento(img)
+
+        self.workImg = img.copy().astype('uint8')
+
+        self.updateWorkCanvas()
+
+    def deteccaoCanny(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+        
+        img = self.workImg.copy()
+
+        dialogConfig = {'inf':'Digite o valor do Threshold Inferior','sup':'Digite o valor do Threshold Superior'}
+        dataHolder = {}
+        
+        d = ValueEntryDialog(self.root,dataHolder,**dialogConfig)
+
+        self.root.wait_window(d.top)
+
+        if(len(dataHolder)>0):
+            img = ut.deteccaoDeCanny(self.workImg.copy(),dataHolder['inf'],dataHolder['sup'])
+
+            self.workImg = img.copy().astype('uint8')
+                
+            self.updateWorkCanvas()
+            
+    def deteccaoSobel(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+        
+        img = self.workImg.copy()
+
+        self.workImg = ut.deteccaoDeSobel(img).copy()
+
+        self.updateWorkCanvas()
+
+    def filtroCrescimento(self,event,ready = True):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+
+        if (ready is False): 
+            tkMessageBox.showinfo('Informação','Selecione o pixel semente')
+
+            self.workCanvas.bind('<Button-1>',self.filtroCrescimento)
+        else:
+            seedCoord = {'x':event.x,'y':event.y}
+
+            dialogConfig = {'thresh':'Digite o valor do Threshold'}
+            dataHolder = {}
+            
+            d = ValueEntryDialog(self.root,dataHolder,**dialogConfig)
+
+            self.root.wait_window(d.top)
+
+            if(len(dataHolder)>0):
+                threshold = dataHolder['thresh']
+                img = ut.crescimentoRegioes(self.workImg.copy(),threshold,seedCoord)
+
+                self.workImg = img.copy().astype('uint8')
+                    
+                self.updateWorkCanvas()
+
+            self.workCanvas.unbind('<Button-1>')
+
+    def filtroLimiarOtsu(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+
+        if(self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Tons de Cinza')
+            return
+
+        _,img = ut.limiarOtsu(self.workImg)
+
+        self.workImg = img.copy().astype('uint8')
+        
+        self.updateWorkCanvas()
+
+
+    ############### FUNÇÕES PROJETO 1 ####################
     def filtroGaussiano(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
 
-        img = self.workImg
+        img = self.workImg.copy()
         
         if(self.isImgColored()):
             mask = ut.filtroGaussiano(img[:,:,2])
             img[:,:,2] = np.clip(mask,0,255).astype(int)
-            ut.gravarArquivo(img,colorSpace='HSV')
         else:
             mask = ut.filtroGaussiano(img)
             img = np.clip(mask,0,255).astype(int)
-            ut.gravarArquivo(img)
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.workImg = img.copy().astype('uint8')
+        self.updateWorkCanvas()
     
     def filtroMediana(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -191,11 +336,11 @@ class MainWindow:
 
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
 
     def filtroMinimo(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -208,10 +353,10 @@ class MainWindow:
 
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
     def filtroMaximo(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -224,10 +369,10 @@ class MainWindow:
 
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
     def filtroLogaritmico(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -239,10 +384,10 @@ class MainWindow:
             img = ut.filtroLogaritmico(img)
 
         self.workImg = img.copy().astype('uint8')
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
     def filtroPotencia(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
         
@@ -262,10 +407,10 @@ class MainWindow:
                 img = ut.filtroPotencia(img,dataHolder['gamma'],C=dataHolder['c'])
 
             self.workImg = img.copy().astype('uint8')
-            self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+            self.updateWorkCanvas()
 
     def filtroLaplace(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -283,10 +428,10 @@ class MainWindow:
 
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
     
     def ajustarContraste(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
         
@@ -308,10 +453,10 @@ class MainWindow:
 
             self.workImg = img.copy().astype('uint8')
 
-            self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+            self.updateWorkCanvas()
 
     def equalizar(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -325,11 +470,11 @@ class MainWindow:
 
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
         
 
     def filtroLimiarS(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -347,10 +492,10 @@ class MainWindow:
         
         self.workImg = img.copy().astype('uint8')
 
-        self.showImageOnCanvas(filename=self.tempPath)
+        self.updateWorkCanvas()
 
     def filtroMedia(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -363,10 +508,10 @@ class MainWindow:
 
         self.workImg = img.copy()
         
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
     def filtroNegativo(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -382,9 +527,9 @@ class MainWindow:
 
         self.workImg = img
 
-        self.showImageOnCanvas(filename=self.tempPath,colored=self.isImgColored())
+        self.updateWorkCanvas()
 
-    ################GERENCIAMENTO##################
+    ################ GERENCIAMENTO ##################
     def isImgColored(self):
         return self.hasColor
 
@@ -420,7 +565,7 @@ class MainWindow:
         return tuple(returnList)
 
     def histEqualizado(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -437,7 +582,7 @@ class MainWindow:
 
 
     def exibirHistograma(self):
-        if(self.img is None):
+        if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
             return
 
@@ -462,8 +607,7 @@ class MainWindow:
             return False
 
     def salvar(self):
-        from shutil import copyfile
-        filename = tkF.asksaveasfilename(filetypes=('PNG {*.png}'))
+        filename = tkF.asksaveasfilename(filetypes=(('PNG','*.png'),))
         if(filename != ''):
             if(self.isImgColored()):
                 ut.gravarArquivo(self.workImg,filename,colorSpace='HSV')
@@ -471,7 +615,26 @@ class MainWindow:
                 ut.gravarArquivo(self.workImg,filename)
 
     def abrir(self):
-        self.showImageOnCanvas(filename=None,colored=self.isImgColored())
+        imgPath = ut.abrirArquivo()
+        try:
+            self.workImg = self.prepareImage(imgPath,color=self.isImgColored())
+        except:
+            return
+
+        self.updateWorkCanvas()
+        self.updateOriginalCanvas()
+
+    def updateOriginalCanvas(self):
+        if(self.originalCanvas != None):
+            self.originalCanvas.destroy()
+
+        self.originalCanvasImg = self.getPhotoImage(self.originalFile)
+        self.originalCanvas = tk.Canvas(self.frameCanvas,height=self.originalCanvasImg.height(),width=self.originalCanvasImg.width())
+        self.originalCanvas.pack(side=tk.LEFT,anchor='w')
+        _ = self.originalCanvas.create_image(0,0,image=self.originalCanvasImg,anchor='nw')
+        self.originalCanvas.pack(anchor='w')
+        _ = self.originalCanvas.create_text(70,14,font=tkFont.Font(size=12),text='Imagem Original',fill='red')
+
 
     def resetImage(self):
         if(self.originalFile is None):
@@ -480,29 +643,33 @@ class MainWindow:
 
         self.resetComponents()
         self.workImg = self.originalFile.copy()
-        self.showImageOnCanvas(filename=self.originalFile,colored=self.isImgColored())        
+        self.updateWorkCanvas()        
 
-    def showImageOnCanvas(self,filename=None,colored=False):
-        if(filename is None):   
-            imgPath = ut.abrirArquivo()
-            try:
-                self.workImg = self.prepareImage(imgPath,color=colored)
-            except:
-                return
+    def getPhotoImage(self, img):
 
-        self.canvas.destroy()
-
-        if(colored):
-            displayImg = cv.cvtColor(self.workImg,cv.COLOR_HSV2RGB)
+        if(self.isImgColored()):
+            displayImg = cv.cvtColor(img,cv.COLOR_HSV2RGB)
         else:
-            displayImg = cv.cvtColor(self.workImg,cv.COLOR_GRAY2RGB)
+            displayImg = cv.cvtColor(img,cv.COLOR_GRAY2RGB)
+
+        return ImageTk.PhotoImage(Image.fromarray(displayImg))
 
 
-        self.img = ImageTk.PhotoImage(Image.fromarray(displayImg))
-        self.canvas = tk.Canvas(self.frame,height=self.img.height(),width=self.img.width())
-        self.canvas.pack()
-        imgID = self.canvas.create_image(0,0,image=self.img,anchor='nw')
-        self.canvas.pack()
+    def updateWorkCanvas(self):
+
+        self.workCanvas.destroy()
+
+        self.workCanvasImg = self.getPhotoImage(self.workImg)
+        self.workCanvas = tk.Canvas(self.frameCanvas,height=self.workCanvasImg.height(),width=self.workCanvasImg.width())
+        self.workCanvas.pack(side=tk.RIGHT,anchor='e')
+        imgID = self.workCanvas.create_image(0,0,image=self.workCanvasImg,anchor='nw')
+        self.workCanvas.pack(anchor='e')
+        _ = self.workCanvas.create_text(80,14,font=tkFont.Font(size=12),text='Imagem Modificada',fill='red')
+
+
+    def getCanvasCoordinates(self,eventOrigin,coord):
+        coord['x'],coord['y'] = eventOrigin.x,eventOrigin.y
+        print 'x: %s y: %s' % (eventOrigin.x,eventOrigin.y)
 
     def prepareImage(self,filename,color=False):
         img = cv.imread(filename)
@@ -513,7 +680,6 @@ class MainWindow:
             img = cv.cvtColor(img,cv.COLOR_BGR2HSV)
 
         self.originalFile = img.copy()
-        print('forma workimg: ',img.shape)
         return img
 
 

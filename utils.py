@@ -9,6 +9,7 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+from collections import deque
 
 def abrirArquivo():
     tk.Tk().withdraw() #ocultar janela raiz
@@ -219,3 +220,65 @@ def filtroPotencia(img,gamma,C=1):
 def filtroGaussiano(img):
     kernel = np.array([[1,4,7,4,1],[4,16,26,16,4],[7,26,41,26,7],[4,16,26,16,4],[1,4,7,4,1]])/273
     return conv2D(img,kernel)
+
+def limiarOtsu(img):
+    threshold,img= cv.threshold(img,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU)
+    return (threshold,img)
+
+def crescimentoRegioes(img,threshold,seedCoord):
+    _img = np.zeros(img.shape,dtype='uint8')
+
+    def adicionaVizinhos(pixel,fila,visitados):
+        vizinhos = [(pixel[0]+1,pixel[1]),(pixel[0]+1,pixel[1]-1),(pixel[0],pixel[1]-1),(pixel[0]-1,pixel[1]-1),(pixel[0]-1,pixel[1]),(pixel[0]-1,pixel[1]+1),(pixel[0],pixel[1]+1),(pixel[0]+1,pixel[1]+1)]
+        for viz in vizinhos:
+            if viz not in visitados:
+                if ((viz[0] >= 0 and viz[1] >= 0) and \
+                    (viz[0] < img.shape[0] and viz[1] < img.shape[1])):
+                    visitados[viz] = True
+                    fila.append(viz)
+                
+
+    fila = deque()
+    visitados = {}
+
+    fila.append((seedCoord['y'],seedCoord['x']))
+    pixel = fila.popleft()
+    valor_semente = img.item(pixel)
+    adicionaVizinhos(pixel,fila,visitados)
+    _img.itemset(pixel,valor_semente)
+
+    while(len(fila) > 0):
+        pixel = fila.popleft()
+        adicionaVizinhos(pixel,fila,visitados)
+        valor_atual = img.item(pixel)
+        if(abs(valor_atual - valor_semente) <= threshold):
+            _img.itemset(pixel,valor_atual)
+
+    return _img
+
+def deteccaoDeSobel(img):
+    img = filtroGaussiano(img)
+    
+    kernel = np.array([[-1,0,1],[-2,0,2],[-1,0,1]])
+    g1 = conv2D(img,kernel)
+
+    kernel = np.array([[-1,-2,-1],[0,0,0],[1,2,1]])
+    g2 = conv2D(img,kernel)
+
+    out = g1+g2
+    return np.clip(out,0,255).astype('uint8')
+
+def deteccaoDeCanny(img,tInferior,tSuperior):
+   return cv.Canny(img,tInferior,tSuperior) 
+
+def transAbertura(img):
+    bordas = deteccaoDeCanny(img,100,200)
+    posErosao = filtroMinimo(bordas,3,3)
+    posDilacao = filtroMaximo(posErosao,3,3)
+    return np.clip(posDilacao,0,255).astype('uint8')
+
+def transFechamento(img):
+    bordas = deteccaoDeCanny(img,100,200)
+    posDilacao = filtroMaximo(bordas,3,3)
+    posErosao = filtroMinimo(posDilacao,3,3)
+    return np.clip(posErosao,0,255).astype('uint8')
