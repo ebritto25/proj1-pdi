@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from collections import deque
+import arff
 
 def abrirArquivo():
     tk.Tk().withdraw() #ocultar janela raiz
@@ -245,14 +246,16 @@ def crescimentoRegioes(img,threshold,seedCoord):
     pixel = fila.popleft()
     valor_semente = img.item(pixel)
     adicionaVizinhos(pixel,fila,visitados)
-    _img.itemset(pixel,valor_semente)
+#    _img.itemset(pixel,valor_semente)
+    _img.itemset(pixel,255)
 
     while(len(fila) > 0):
         pixel = fila.popleft()
         adicionaVizinhos(pixel,fila,visitados)
         valor_atual = img.item(pixel)
         if(abs(valor_atual - valor_semente) <= threshold):
-            _img.itemset(pixel,valor_atual)
+#            _img.itemset(pixel,valor_atual)
+            _img.itemset(pixel,255)
 
     return _img
 
@@ -272,13 +275,65 @@ def deteccaoDeCanny(img,tInferior,tSuperior):
    return cv.Canny(img,tInferior,tSuperior) 
 
 def transAbertura(img):
-    bordas = deteccaoDeCanny(img,100,200)
+    bordas = limiarOtsu(img)[1]
     posErosao = filtroMinimo(bordas,3,3)
     posDilacao = filtroMaximo(posErosao,3,3)
-    return np.clip(posDilacao,0,255).astype('uint8')
+    return posErosao.astype('uint8')
 
 def transFechamento(img):
     bordas = deteccaoDeCanny(img,100,200)
     posDilacao = filtroMaximo(bordas,3,3)
     posErosao = filtroMinimo(posDilacao,3,3)
     return np.clip(posErosao,0,255).astype('uint8')
+
+def extracaoCor(img):
+    multi_rgb = cv.cvtColor(img,cv.COLOR_HSV2RGB).astype('uint8')
+
+    for i in range(3):
+        multi_rgb[:,:,i] = np.bitwise_and(multi_rgb[:,:,i],np.uint8(192))
+
+    rgb = np.zeros(multi_rgb.shape,dtype='uint8')
+    rgb = (multi_rgb[:,:,0] >> 2) | (multi_rgb[:,:,1] >> 4) | (multi_rgb[:,:,2] >> 6)
+    rows,cols = rgb.shape
+
+    def populaHistogramas(pixel,histoBorda,histoInterior):
+        vizinhos = [(pixel[0]+1,pixel[1]),(pixel[0],pixel[1]-1),\
+                    (pixel[0]-1,pixel[1]),(pixel[0],pixel[1]+1)]
+
+        cor_centro = rgb[pixel[0],pixel[1]]
+
+        for viz in vizinhos:
+            if ((viz[0] >= 0 and viz[1] >= 0) and \
+                (viz[0] < rows and viz[1] < cols)):
+                
+                cor_viz = rgb[viz[0],viz[1]]
+
+                if(cor_centro != cor_viz):
+                    histoBorda[cor_viz] += 1
+                    return
+
+        histoInterior[cor_centro] += 1
+        return
+        
+
+    histoBorda = [0]*64
+    histoInterior = [0]*64
+
+    for y in xrange(rows):
+        for x in xrange(cols):
+            populaHistogramas((y,x),histoBorda,histoInterior)
+
+    histos = histoBorda + histoInterior
+
+    '''
+    print(histoBorda)
+    print(histoInterior)
+    print(multi_rgb[0,0])
+    '''
+
+    return histos,cv.cvtColor(multi_rgb,cv.COLOR_RGB2HSV)
+
+def arffWriter(filename,data,names,relation):
+    arff.dump(filename,data,relation=relation,names=names)
+
+

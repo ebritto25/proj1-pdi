@@ -92,6 +92,7 @@ class MainWindow:
         self.tempPath = 'temp.png'
         self.colorVariable = tk.IntVar()
         self.root = master
+        self.originalPath = None
 
         self.frame = tk.Frame(master)
         self.frame.pack()
@@ -146,11 +147,16 @@ class MainWindow:
         self.subMenuDeteccao.add_command(label='Detecção de Sobel',command=self.deteccaoSobel)
         self.subMenuDeteccao.add_command(label='Detecção de Canny',command=self.deteccaoCanny)
 
-        #MENU DETECÇÃO
+        #MENU TRANSFORMAÇÕES
         self.subMenuTransformacao = tk.Menu(self.menuBar)
         self.menuBar.add_cascade(label='Transformações',menu=self.subMenuTransformacao)
         self.subMenuTransformacao.add_command(label='Abertura',command=self.transAbertura)
         self.subMenuTransformacao.add_command(label='Fechamento',command=self.transFechamento)
+
+        #MENU CARACTERISTICAS
+        self.subMenuExtracao = tk.Menu(self.menuBar)
+        self.menuBar.add_cascade(label='Extração',menu=self.subMenuExtracao)
+        self.subMenuExtracao.add_command(label='Cor',command=self.extCor)
 
         #SAIR
         self.menuBar.add_command(label='Sair',command=self.frame.quit)
@@ -180,6 +186,28 @@ class MainWindow:
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
     ################ FILTROS E TRANSFORMAÇÕES ##################
     ############### FUNÇÕES PROJETO 2 ####################
+    def extCor(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+    
+        if(not self.isImgColored()):
+            tkMessageBox.showerror('Erro','Abra a imagem em modo: Colorida')
+            return
+
+        classe = self.originalPath.split("/")[-1].split(".")[0]
+        atributos,self.workImg = ut.extracaoCor(self.workImg.copy())
+        nomes_atributos = ['Atributo%s' % (i+1) for i in range(len(atributos))]
+        atributos = atributos + [classe]
+        nomes_atributos = nomes_atributos + ['Classe']
+
+        ut.arffWriter(classe+'.arff',[atributos],nomes_atributos,relation=classe)
+
+        tkMessageBox.showinfo('Sucesso','Arquivo gravado com Sucesso!')
+
+        self.updateWorkCanvas()
+
+
     def transAbertura(self):
         if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
@@ -673,6 +701,7 @@ class MainWindow:
 
     def prepareImage(self,filename,color=False):
         img = cv.imread(filename)
+        self.originalPath = filename
 
         if(color is False):
             img = cv.cvtColor(img,cv.COLOR_BGR2GRAY)
