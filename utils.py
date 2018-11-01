@@ -10,7 +10,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import math
 from collections import deque
-import arff
 
 def abrirArquivo():
     tk.Tk().withdraw() #ocultar janela raiz
@@ -246,7 +245,6 @@ def crescimentoRegioes(img,threshold,seedCoord):
     pixel = fila.popleft()
     valor_semente = img.item(pixel)
     adicionaVizinhos(pixel,fila,visitados)
-#    _img.itemset(pixel,valor_semente)
     _img.itemset(pixel,255)
 
     while(len(fila) > 0):
@@ -254,7 +252,6 @@ def crescimentoRegioes(img,threshold,seedCoord):
         adicionaVizinhos(pixel,fila,visitados)
         valor_atual = img.item(pixel)
         if(abs(valor_atual - valor_semente) <= threshold):
-#            _img.itemset(pixel,valor_atual)
             _img.itemset(pixel,255)
 
     return _img
@@ -334,6 +331,49 @@ def extracaoCor(img):
     return histos,cv.cvtColor(multi_rgb,cv.COLOR_RGB2HSV)
 
 def arffWriter(filename,data,names,relation):
+    import arff
     arff.dump(filename,data,relation=relation,names=names)
+
+def extForma(img):
+    im2, contours, hierarchy = cv.findContours(img, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)
+
+    def defineCodigoVizinhos(vizinhos):
+        codigo = {(1,0)  :'0',
+                  (1,-1) :'1',
+                  (0,-1) :'2',
+                  (-1,-1):'3',
+                  (-1,0) :'4',
+                  (-1,1) :'5',
+                  (0,1)  :'6',
+                  (1,1)  :'7'}
+
+        primeiro = vizinhos[0][0]
+        segundo = vizinhos[1][0]
+        return codigo.get((segundo[0] - primeiro[0],\
+                           segundo[1] - primeiro[1]))
+
+    chain = []
+    maiorContorno = max(contours,key=lambda x: len(x))
+    print('contornos %s' % len(contours))
+
+    for i in xrange(len(maiorContorno)-1):
+        chain.append(defineCodigoVizinhos(maiorContorno[i:i+2]))
+
+    chain.append(defineCodigoVizinhos([maiorContorno[-1],maiorContorno[0]]))
+    
+    hist = [0]*8
+
+    for c in chain:
+        hist[int(c)] += 1
+
+#    graficoHistograma(hist)
+    return hist
+#    i = chain.index(min(chain))
+#    head = chain[:i]
+#    tail = chain[i:]
+#    chain = tail+head
+#    print(''.join(chain))
+
+
 
 

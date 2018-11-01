@@ -157,6 +157,7 @@ class MainWindow:
         self.subMenuExtracao = tk.Menu(self.menuBar)
         self.menuBar.add_cascade(label='Extração',menu=self.subMenuExtracao)
         self.subMenuExtracao.add_command(label='Cor',command=self.extCor)
+        self.subMenuExtracao.add_command(label='Forma',command=self.extForma)
 
         #SAIR
         self.menuBar.add_command(label='Sair',command=self.frame.quit)
@@ -186,6 +187,31 @@ class MainWindow:
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
     ################ FILTROS E TRANSFORMAÇÕES ##################
     ############### FUNÇÕES PROJETO 2 ####################
+    def extForma(self):
+        if(self.workCanvasImg is None):
+            tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
+            return
+        
+        dialogConfig = {'inf':'Digite o valor do Threshold Inferior','sup':'Digite o valor do Threshold Superior'}
+        dataHolder = {}
+        
+        d = ValueEntryDialog(self.root,dataHolder,**dialogConfig)
+
+        self.root.wait_window(d.top)
+
+        if(len(dataHolder)>0):
+            img = ut.deteccaoDeCanny(self.workImg.copy(),dataHolder['inf'],dataHolder['sup'])
+            atributos = ut.extForma(img)
+
+            classe = self.originalPath.split("/")[-1].split(".")[0]
+            nomes_atributos = ['Atributo%s' % (i+1) for i in range(len(atributos))]
+
+            atributos = atributos + [classe]
+            nomes_atributos = nomes_atributos + ['Classe']
+
+            filename = tkF.asksaveasfilename(filetypes=(('ARFF','*.arff'),))
+            ut.arffWriter(filename,[atributos],nomes_atributos,relation=classe)
+
     def extCor(self):
         if(self.workCanvasImg is None):
             tkMessageBox.showerror('Erro','Nenhuma imagem aberta')
@@ -201,7 +227,8 @@ class MainWindow:
         atributos = atributos + [classe]
         nomes_atributos = nomes_atributos + ['Classe']
 
-        ut.arffWriter(classe+'.arff',[atributos],nomes_atributos,relation=classe)
+        filename = tkF.asksaveasfilename(filetypes=(('ARFF','*.arff'),))
+        ut.arffWriter(filename,[atributos],nomes_atributos,relation=classe)
 
         tkMessageBox.showinfo('Sucesso','Arquivo gravado com Sucesso!')
 
