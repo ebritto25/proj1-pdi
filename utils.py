@@ -1,3 +1,4 @@
+# coding=utf-8
 '''
 Nome: Eduardo Britto da Costa
 RA: 1633368
@@ -9,6 +10,8 @@ import cv2 as cv
 import numpy as np
 import matplotlib.pyplot as plt
 import math
+import os
+import os.path as path
 from collections import deque
 
 def abrirArquivo():
@@ -330,9 +333,8 @@ def extracaoCor(img):
 
     return histos,cv.cvtColor(multi_rgb,cv.COLOR_RGB2HSV)
 
-def arffWriter(filename,data,names,relation):
-    import arff
-    arff.dump(filename,data,relation=relation,names=names)
+def arffWriter(filename,names,classes,relation,data):
+    arffDump(filename,data,relation,classes,attributes_names=names)
 
 def extForma(img):
     im2, contours, hierarchy = cv.findContours(img, cv.RETR_TREE, cv.CHAIN_APPROX_NONE)
@@ -354,7 +356,6 @@ def extForma(img):
 
     chain = []
     maiorContorno = max(contours,key=lambda x: len(x))
-    print('contornos %s' % len(contours))
 
     for i in xrange(len(maiorContorno)-1):
         chain.append(defineCodigoVizinhos(maiorContorno[i:i+2]))
@@ -366,14 +367,134 @@ def extForma(img):
     for c in chain:
         hist[int(c)] += 1
 
-#    graficoHistograma(hist)
     return hist
-#    i = chain.index(min(chain))
-#    head = chain[:i]
-#    tail = chain[i:]
-#    chain = tail+head
-#    print(''.join(chain))
+
+def arffDump(dst_filename,data,relation,classes,attributes_names = None):
+    relation = '@RELATION %s\n' % (relation)
+
+    types = {type(0):'numeric',type(0.0):'numeric',type(''):'string'}
+    data_sample = data[0]
+
+    if attributes_names is None:
+        attributes_names = ['Attribute%s' % (i) for i in range(len(data_sample)-1)]
+
+    attrs = ''
+    for i, attr in enumerate(attributes_names):
+        attr_type = types[type(data_sample[i])]
+        a = '@ATTRIBUTE %s %s\n' % (attr,attr_type)
+        attrs += a
+
+    class_ = '@ATTRIBUTE class {%s}\n' % (','.join(classes))
+
+    header = relation + attrs + class_ + '@DATA\n'  
+
+    with open(dst_filename,'w') as file:
+        file.write(header)
+        for d in data:
+            dados = ','.join([str(v) for v in d])
+            dados += '\n'
+            file.write(dados)
+
+def createFileList(root_directory):
+    #root_directory = '~/testedir/'
+    root_directory = path.abspath(path.expanduser(root_directory))
+
+    assert path.exists(root_directory) == True, 'Diretorio não existe'
+
+    dir_list = os.listdir(root_directory)
+    classes = [] 
+
+    for cl in dir_list:
+        class_path = root_directory + os.sep + cl
+        if path.isdir(class_path):
+            classes.append(cl)
+
+    print('Foram encontradas {} Classes'.format(len(classes)))
+    class_files = {}
+    for cl in classes:
+        class_path = '%s/%s' % (root_directory,cl)
+        files = ['%s/%s' % (class_path, f) for f in os.listdir(class_path)]
+        class_files[cl] = files
+
+    return class_files
+
+def loadImageBatch(path_dict):
+    img_lists = []
+    train_images = []
+    test_images = []
+
+    for image_class, images_paths in path_dict.items():
+        qtd_images = len(images_paths)
+        train_qtd = int(round(qtd_images*0.8))
+
+        train_paths = images_paths[:train_qtd]
+        test_paths = images_paths[train_qtd:]
+
+        for img_path in train_paths:
+            image = cv.imread(img_path)
+            train_images.append((image,image_class,))
+
+        for img_path in test_paths:
+            image = cv.imread(img_path)
+            test_images.append((image,image_class,))
+
+    print('{} imagens de treinamento'.format(len(train_images)))
+    print('{} imagens de teste'.format(len(test_images)))
+    return (train_images,test_images)
+
+def colorBatchExtraction(base_dir):
+    from sets import Set
+    base = createFileList(base_dir)
+    train_images, test_images = loadImageBatch(base)
+
+    train_data = []
+    test_data = []
+    classes = Set()
+    for image, label in train_images:
+        image = cv.cvtColor(image,cv.COLOR_BGR2HSV)
+        features, _ = extracaoCor(image)
+        features.append(label)
+        classes.add(label)
+        train_data.append(features)
+
+    for image, label in test_images:
+        image = cv.cvtColor(image,cv.COLOR_BGR2HSV)
+        features, _ = extracaoCor(image)
+        features.append(label)
+        classes.add(label)
+        test_data.append(features)
+
+    print('{} Imagens Processadas'.format(len(test_data)+len(train_data)))
+    print('Classes: {}'.format(classes))
+    return train_data,test_data,classes
 
 
+def formBatchExtraction(base_dir):
+    from sets import Set
+    base = createFileList(base_dir)
+    train_images, test_images = loadImageBatch(base)
 
+    train_data = []
+    test_data = []
+    classes = Set()
+    for image, label in train_images:
+        image = cv.cvtColor(image,cv.COLOR_BGR2GRAY)
+        threshold,_ = limiarOtsu(image)
+        image = deteccaoDeCanny(image,threshold,threshold*2)
+        features = extForma(image)
+        features.append(label)
+        classes.add(label)
+        train_data.append(features)
 
+    for image, label in test_images:
+        image = cv.cvtColor(image,cv.COLOR_BGR2GRAY)
+        threshold,_ = limiarOtsu(image)
+        image = deteccaoDeCanny(image,threshold,threshold*2)
+        features = extForma(image)
+        features.append(label)
+        classes.add(label)
+        test_data.append(features)
+
+    print('{} Imagens Processadas'.format(len(test_data)+len(train_data)))
+    print('Classes: {}'.format(classes))
+    return train_data,test_data,classes

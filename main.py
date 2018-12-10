@@ -13,6 +13,8 @@ import tkFont
 import utils as ut
 from PIL import Image,ImageTk
 import numpy as np
+import os
+import os.path
 
 class ValueEntryDialog:
 
@@ -158,6 +160,8 @@ class MainWindow:
         self.menuBar.add_cascade(label='Extração',menu=self.subMenuExtracao)
         self.subMenuExtracao.add_command(label='Cor',command=self.extCor)
         self.subMenuExtracao.add_command(label='Forma',command=self.extForma)
+        self.subMenuExtracao.add_command(label='Cor (Pasta)',command=self.extCorPasta)
+        self.subMenuExtracao.add_command(label='Forma (Pasta)',command=self.extFormaPasta)
 
         #SAIR
         self.menuBar.add_command(label='Sair',command=self.frame.quit)
@@ -186,6 +190,34 @@ class MainWindow:
         self.spinnerLimiar.pack(side=tk.LEFT)
         self.spinnerLimiar.configure(state=tk.DISABLED,validatecommand=spinnerValidation,validate='focusout')
     ################ FILTROS E TRANSFORMAÇÕES ##################
+    ############### FUNÇÕES PROJETO 3 ####################
+    def extCorPasta(self):
+        base_dir = tkF.askdirectory()
+        if(base_dir != ''):
+            train_data,test_data,classes = ut.colorBatchExtraction(base_dir)
+            relation = base_dir.split('/')[-1]
+            attr_names = ['Color{}'.format(i) for i in range(128)]
+            filename = tkF.asksaveasfilename(filetypes=(('ARFF','*.arff'),))
+            if type(filename) == type(tuple([])):
+                filename = relation + '.arff'   
+
+            ut.arffWriter(filename,attr_names,list(classes),relation,train_data)
+            ut.arffWriter(filename[:-5]+'_teste.arff',attr_names,list(classes),relation,test_data)
+
+
+    def extFormaPasta(self):
+        base_dir = tkF.askdirectory()
+        if(base_dir != ''):
+            train_data,test_data,classes = ut.formBatchExtraction(base_dir)
+            relation = base_dir.split('/')[-1]
+            attr_names = ['Direction{}'.format(i) for i in range(8)]
+            filename = tkF.asksaveasfilename(filetypes=(('ARFF','*.arff'),))
+            if type(filename) == type(tuple([])):
+                filename = relation + '.arff'   
+
+            ut.arffWriter(filename,attr_names,list(classes),relation,train_data)
+            ut.arffWriter(filename[:-5]+'_teste.arff',attr_names,list(classes),relation,test_data)
+
     ############### FUNÇÕES PROJETO 2 ####################
     def extForma(self):
         if(self.workCanvasImg is None):
@@ -225,10 +257,9 @@ class MainWindow:
         atributos,self.workImg = ut.extracaoCor(self.workImg.copy())
         nomes_atributos = ['Atributo%s' % (i+1) for i in range(len(atributos))]
         atributos = atributos + [classe]
-        nomes_atributos = nomes_atributos + ['Classe']
 
         filename = tkF.asksaveasfilename(filetypes=(('ARFF','*.arff'),))
-        ut.arffWriter(filename,[atributos],nomes_atributos,relation=classe)
+        ut.arffWriter(filename,nomes_atributos,[classe],classe,[atributos])
 
         tkMessageBox.showinfo('Sucesso','Arquivo gravado com Sucesso!')
 
